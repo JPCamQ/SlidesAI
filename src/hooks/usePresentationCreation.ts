@@ -48,7 +48,7 @@ const initialTasks: Task[] = [
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Helper function to invoke edge function with custom timeout
-const invokeWithTimeout = async (functionName: string, body: any, timeoutMs: number = 90000) => {
+const invokeWithTimeout = async (functionName: string, body: any, timeoutMs: number = 180000) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -243,7 +243,7 @@ export const usePresentationCreation = () => {
           userPrompt: data.userPrompt,
           transcript: data.transcript,
         },
-        90000, // 90 seconds timeout
+        180000, // 180 seconds timeout
         3,     // 3 retries
         addLog,
         'Analizando transcript'
@@ -267,7 +267,7 @@ export const usePresentationCreation = () => {
           analysis: analysisResult.analysis,
           stylePrompt: data.stylePrompt,
         },
-        90000, // 90 seconds timeout
+        180000, // 180 seconds timeout
         3,     // 3 retries
         addLog,
         'Creando outline'
