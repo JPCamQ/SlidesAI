@@ -51,7 +51,7 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const invokeWithTimeout = async (functionName: string, body: any, timeoutMs: number = 90000) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  
+
   try {
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`,
@@ -65,19 +65,19 @@ const invokeWithTimeout = async (functionName: string, body: any, timeoutMs: num
         signal: controller.signal,
       }
     );
-    
+
     clearTimeout(timeoutId);
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       return { data: null, error: { message: `HTTP ${response.status}: ${errorText}` } };
     }
-    
+
     return { data: await response.json(), error: null };
   } catch (error: any) {
     clearTimeout(timeoutId);
     if (error.name === 'AbortError') {
-      return { data: null, error: { message: `Timeout: La operación tardó más de ${timeoutMs/1000} segundos` } };
+      return { data: null, error: { message: `Timeout: La operación tardó más de ${timeoutMs / 1000} segundos` } };
     }
     return { data: null, error: { message: error.message || 'Error de conexión' } };
   }
@@ -85,57 +85,57 @@ const invokeWithTimeout = async (functionName: string, body: any, timeoutMs: num
 
 // Generic retry helper for edge functions
 const invokeWithRetry = async (
-  functionName: string, 
-  body: any, 
+  functionName: string,
+  body: any,
   timeoutMs: number,
   maxRetries: number,
   addLog: (msg: string) => void,
   stepName: string
 ): Promise<{ data: any; error: any }> => {
   let retries = maxRetries;
-  
+
   while (retries > 0) {
     const attemptNumber = maxRetries - retries + 1;
     const retryDelay = attemptNumber * 5000; // 5s, 10s, 15s
-    
+
     try {
-      addLog(`${stepName} (intento ${attemptNumber}/${maxRetries}, timeout: ${timeoutMs/1000}s)...`);
-      
+      addLog(`${stepName} (intento ${attemptNumber}/${maxRetries}, timeout: ${timeoutMs / 1000}s)...`);
+
       const { data, error } = await invokeWithTimeout(functionName, body, timeoutMs);
-      
+
       if (error) {
         retries--;
         if (retries > 0) {
-          addLog(`Error: ${error.message}. Reintentando en ${retryDelay/1000}s...`);
+          addLog(`Error: ${error.message}. Reintentando en ${retryDelay / 1000}s...`);
           await delay(retryDelay);
           continue;
         }
         return { data: null, error: { message: `Error después de ${maxRetries} intentos: ${error.message}` } };
       }
-      
+
       if (data?.error) {
         retries--;
         if (retries > 0) {
-          addLog(`Error servidor: ${data.error}. Reintentando en ${retryDelay/1000}s...`);
+          addLog(`Error servidor: ${data.error}. Reintentando en ${retryDelay / 1000}s...`);
           await delay(retryDelay);
           continue;
         }
         return { data: null, error: { message: `Error servidor después de ${maxRetries} intentos: ${data.error}` } };
       }
-      
+
       return { data, error: null };
-      
+
     } catch (e: any) {
       retries--;
       if (retries > 0) {
-        addLog(`Excepción: ${e.message}. Reintentando en ${retryDelay/1000}s...`);
+        addLog(`Excepción: ${e.message}. Reintentando en ${retryDelay / 1000}s...`);
         await delay(retryDelay);
       } else {
         return { data: null, error: { message: `Excepción después de ${maxRetries} intentos: ${e.message}` } };
       }
     }
   }
-  
+
   return { data: null, error: { message: 'Error desconocido' } };
 };
 
@@ -157,7 +157,7 @@ export const usePresentationCreation = () => {
   };
 
   const updateTaskStatus = (taskId: string, status: Task['status'], errorMessage?: string) => {
-    setTasks(prev => prev.map(task => 
+    setTasks(prev => prev.map(task =>
       task.id === taskId ? { ...task, status, errorMessage } : task
     ));
   };
@@ -235,7 +235,7 @@ export const usePresentationCreation = () => {
       // Step 1: Analyze content with retries
       updateTaskStatus('understand', 'processing');
       addLog('Paso 1: Analizando transcript con Gemini 3 Pro...');
-      
+
       const { data: analysisResult, error: analysisError } = await invokeWithRetry(
         'analyze-transcript',
         {
@@ -260,7 +260,7 @@ export const usePresentationCreation = () => {
       // Step 2: Create outline with retries
       updateTaskStatus('outline', 'processing');
       addLog('Paso 2: Creando outline de presentación con Gemini 3 Pro...');
-      
+
       const { data: outlineResult, error: outlineError } = await invokeWithRetry(
         'create-outline',
         {
@@ -283,17 +283,17 @@ export const usePresentationCreation = () => {
       // Step 3: Save to database with retries
       updateTaskStatus('database', 'processing');
       addLog('Paso 3: Guardando en base de datos...');
-      
+
       let presentation: any = null;
       let dbRetries = 3;
-      
+
       while (dbRetries > 0 && !presentation) {
         const attemptNumber = 4 - dbRetries;
         const retryDelay = attemptNumber * 5000;
-        
+
         try {
           addLog(`Guardando presentación (intento ${attemptNumber}/3)...`);
-          
+
           const { data: dbData, error: dbError } = await supabase
             .from('presentations')
             .insert({
@@ -311,18 +311,18 @@ export const usePresentationCreation = () => {
           if (dbError) {
             dbRetries--;
             if (dbRetries > 0) {
-              addLog(`Error en BD: ${dbError.message}. Reintentando en ${retryDelay/1000}s...`);
+              addLog(`Error en BD: ${dbError.message}. Reintentando en ${retryDelay / 1000}s...`);
               await delay(retryDelay);
               continue;
             }
             throw new Error(`Error al guardar en base de datos: ${dbError.message}`);
           }
-          
+
           presentation = dbData;
         } catch (e: any) {
           dbRetries--;
           if (dbRetries > 0) {
-            addLog(`Excepción BD: ${e.message}. Reintentando en ${retryDelay/1000}s...`);
+            addLog(`Excepción BD: ${e.message}. Reintentando en ${retryDelay / 1000}s...`);
             await delay(retryDelay);
           } else {
             throw e;
@@ -342,14 +342,14 @@ export const usePresentationCreation = () => {
 
       let slides: any[] = [];
       let slidesDbRetries = 3;
-      
+
       while (slidesDbRetries > 0 && slides.length === 0) {
         const attemptNumber = 4 - slidesDbRetries;
         const retryDelay = attemptNumber * 5000;
-        
+
         try {
           addLog(`Guardando slides (intento ${attemptNumber}/3)...`);
-          
+
           const { data: slidesResult, error: slidesError } = await supabase
             .from('slides')
             .insert(slidesData)
@@ -358,18 +358,18 @@ export const usePresentationCreation = () => {
           if (slidesError) {
             slidesDbRetries--;
             if (slidesDbRetries > 0) {
-              addLog(`Error guardando slides: ${slidesError.message}. Reintentando en ${retryDelay/1000}s...`);
+              addLog(`Error guardando slides: ${slidesError.message}. Reintentando en ${retryDelay / 1000}s...`);
               await delay(retryDelay);
               continue;
             }
             throw new Error(`Error al guardar diapositivas: ${slidesError.message}`);
           }
-          
+
           slides = slidesResult || [];
         } catch (e: any) {
           slidesDbRetries--;
           if (slidesDbRetries > 0) {
-            addLog(`Excepción slides: ${e.message}. Reintentando en ${retryDelay/1000}s...`);
+            addLog(`Excepción slides: ${e.message}. Reintentando en ${retryDelay / 1000}s...`);
             await delay(retryDelay);
           } else {
             throw e;
@@ -383,22 +383,22 @@ export const usePresentationCreation = () => {
       // Step 4: Generate images one by one with retries
       updateTaskStatus('images', 'processing');
       addLog('Paso 4: Generando imágenes con Nano Banana Pro...');
-      
+
       const totalSlides = outlineResult.outline.slides.length;
       setSlideProgress({ completed: 0, total: totalSlides });
       addLog(`Generando ${totalSlides} diapositivas (30-40 seg cada una)...`);
-      
+
       let successfulSlides = 0;
 
       for (let i = 0; i < totalSlides; i++) {
         const slide = outlineResult.outline.slides[i];
         const slideNumber = i + 1;
-        
+
         if (i > 0) {
           addLog(`Esperando 5s antes de siguiente slide...`);
           await delay(5000);
         }
-        
+
         const { data: slideResult, error: slideError } = await invokeWithRetry(
           'generate-single-slide',
           {
@@ -409,7 +409,7 @@ export const usePresentationCreation = () => {
             description: slide.description,
             stylePrompt: data.stylePrompt,
           },
-          90000, // 90 seconds timeout
+          180000, // 180 seconds timeout
           3,     // 3 retries
           addLog,
           `Generando slide ${slideNumber}/${totalSlides}`
@@ -434,7 +434,7 @@ export const usePresentationCreation = () => {
       // Step 5: Create PDF with retries
       updateTaskStatus('pdf', 'processing');
       addLog('Paso 5: Compilando PDF...');
-      
+
       const { data: pdfResult, error: pdfError } = await invokeWithRetry(
         'create-pdf',
         { presentationId: presentation.id },
@@ -447,7 +447,7 @@ export const usePresentationCreation = () => {
       if (pdfError) {
         throw new Error(pdfError.message || 'Error al crear PDF');
       }
-      
+
       // Update presentation with PDF URL
       await supabase
         .from('presentations')
@@ -464,8 +464,8 @@ export const usePresentationCreation = () => {
       console.error('Error creating presentation:', error);
       addLog(`ERROR: ${error.message || 'Error desconocido'}`);
       toast.error(error.message || 'Error al crear la presentación');
-      
-      setTasks(prev => prev.map(task => 
+
+      setTasks(prev => prev.map(task =>
         task.status === 'processing' ? { ...task, status: 'error', errorMessage: error.message } : task
       ));
     } finally {
